@@ -22,6 +22,17 @@ public class MemberList {
         }
     }
 
+    public Member get(final String nodeId) {
+        synchronized (members) {
+            for (Member member : members) {
+                if (member.getNodeId().equals(nodeId)) {
+                    return member;
+                }
+            }
+        }
+        return null;
+    }
+
     public boolean contains(final Member member) {
         synchronized (members) {
             return members.contains(member);
