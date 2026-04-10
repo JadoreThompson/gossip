@@ -2,6 +2,8 @@ package com.zenz.gossip.route.api;
 
 import com.zenz.gossip.config.Config;
 import com.zenz.gossip.message.MemberAliveMessage;
+import com.zenz.gossip.message.MemberDeadMessage;
+import com.zenz.gossip.message.MemberSuspiciousMessage;
 import com.zenz.gossip.route.api.request.JoinRequest;
 import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.api.request.PongRequest;
@@ -45,6 +47,10 @@ public class ApiController {
             throw new NotFoundException("Member not found");
         }
 
+        for (Message message : body.getPayload()) {
+            handleMessage(message);
+        }
+
         try (final HttpClient client = HttpClient.newHttpClient()) {
             final PongRequest pongRequest = new PongRequest(Config.nodeId);
 
@@ -77,5 +83,34 @@ public class ApiController {
         }
 
         return ResponseEntity.ok().build();
+    }
+
+    private void handleMessage(final Message message) {
+        switch (message.getType()) {
+            case MEMBER_SUSPICIOUS -> {
+                final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage)  message;
+                final Member member = memberList.get(memberSuspiciousMessage.getNodeId());
+                if (member != null && member.getStatus() != MemberStatus.SUSPICIOUS) {
+                    member.setStatus(MemberStatus.SUSPICIOUS);
+                    pendingMessages.add(memberSuspiciousMessage);
+                }
+            }
+            case MEMBER_ALIVE -> {
+                final MemberAliveMessage memberAliveMessage = (MemberAliveMessage) message;
+                final Member member = memberList.get(memberAliveMessage.getNodeId());
+                if (member != null && member.getStatus() !=  MemberStatus.ALIVE) {
+                    member.setStatus(MemberStatus.ALIVE);
+                    pendingMessages.add(memberAliveMessage);
+                }
+            }
+            case MEMBER_DEAD -> {
+                final MemberDeadMessage memberDeadMessage = (MemberDeadMessage) message;
+                final Member member = memberList.get(memberDeadMessage.getNodeId());
+                if (member != null) {
+                    memberList.remove(member);
+                }
+            }
+            case RANDOM_MESSAGE -> {}
+        }
     }
 }

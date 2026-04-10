@@ -5,9 +5,9 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public class MemberDeadMessage implements Message {
+public class MemberSuspiciousMessage implements Message {
 
-    private final MessageType type = MessageType.MEMBER_DEAD;
+    private final MessageType type = MessageType.MEMBER_SUSPICIOUS;
 
     private final String nodeId;
 }
