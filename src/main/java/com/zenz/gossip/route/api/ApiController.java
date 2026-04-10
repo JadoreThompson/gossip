@@ -13,6 +13,7 @@ import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
 import com.zenz.gossip.util.MemberStatus;
 import com.zenz.gossip.message.Message;
+import com.zenz.gossip.util.PendingMessages;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 
@@ -27,8 +28,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
-import java.util.List;
 
 @RestController
 @RequestMapping
@@ -37,8 +36,9 @@ public class ApiController {
 
     private final MemberList memberList;
 
+    private final PendingMessages pendingMessages;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final List<Message> pendingMessages = new ArrayList<>();
 
     @PostMapping("/ping")
     public void ping(@RequestBody PingRequest body) throws IOException, InterruptedException {
