@@ -1,14 +1,12 @@
 package com.zenz.gossip.util;
 
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class MemberList {
 
+    private final Random random = new Random();
     private final Set<Member> members =  new HashSet<>();
-
-    public MemberList() {}
 
     public void add(final Member member) {
         synchronized (members) {
@@ -31,6 +29,17 @@ public class MemberList {
             }
         }
         return null;
+    }
+
+    public Member getRandom() {
+        synchronized (members) {
+            if (members.isEmpty()) {
+                return null;
+            }
+            final List<Member> members = new ArrayList<>(this.members);
+            final int index = random.nextInt(members.size());
+            return members.get(index);
+        }
     }
 
     public boolean contains(final Member member) {

@@ -9,7 +9,7 @@ import java.net.InetSocketAddress;
 @RequiredArgsConstructor
 public class JoinRequest {
 
-    private final RequestType type;
+    private final RequestType type = RequestType.JOIN;
 
     private final String nodeId;
 

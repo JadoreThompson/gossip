@@ -1,0 +1,1 @@
+Paper - [SWIM: Scalable Weakly Consistent Infections-Style Process Group Membership Protocol](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)

@@ -17,5 +17,15 @@ public class Member {
 
     private long incarnation;
 
-    private MemberStatus status;
+    private MemberStatus status = MemberStatus.ALIVE;
+
+    @Override
+    public String toString() {
+        return "Member{" +
+                "nodeId='" + nodeId + '\'' +
+                ", address=" + address +
+                ", incarnation=" + incarnation +
+                ", status=" + status +
+                '}';
+    }
 }

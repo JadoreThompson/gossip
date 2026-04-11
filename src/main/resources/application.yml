@@ -1,0 +1,12 @@
+cluster:
+  node-id: node-1
+  failure-timeout: 30000
+  members:
+    - node-1:localhost:9090
+
+spring:
+  application:
+    name: gossip
+logging:
+  level:
+    root: info

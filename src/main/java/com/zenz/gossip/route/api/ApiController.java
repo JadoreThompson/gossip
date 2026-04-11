@@ -1,9 +1,7 @@
 package com.zenz.gossip.route.api;
 
-import com.zenz.gossip.config.Config;
-import com.zenz.gossip.message.MemberAliveMessage;
-import com.zenz.gossip.message.MemberDeadMessage;
-import com.zenz.gossip.message.MemberSuspiciousMessage;
+import com.zenz.gossip.config.ClusterConfig;
+import com.zenz.gossip.message.*;
 import com.zenz.gossip.route.api.request.JoinRequest;
 import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.api.request.PongRequest;
@@ -12,9 +10,9 @@ import com.zenz.gossip.route.exception.NotFoundException;
 import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
 import com.zenz.gossip.util.MemberStatus;
-import com.zenz.gossip.message.Message;
 import com.zenz.gossip.util.PendingMessages;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +30,7 @@ import java.net.http.HttpResponse;
 @RestController
 @RequestMapping
 @RequiredArgsConstructor
+@Slf4j
 public class ApiController {
 
     private final MemberList memberList;
@@ -52,13 +51,13 @@ public class ApiController {
         }
 
         try (final HttpClient client = HttpClient.newHttpClient()) {
-            final PongRequest pongRequest = new PongRequest(Config.nodeId);
-
-            final HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(member.getAddress() + "/pong"))
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pongRequest)))
-                    .build();
-            client.send(request, HttpResponse.BodyHandlers.ofString());
+//            final PongRequest pongRequest = new PongRequest(ClusterConfig.getn);
+//
+//            final HttpRequest request = HttpRequest.newBuilder()
+//                    .uri(URI.create(member.getAddress() + "/pong"))
+//                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pongRequest)))
+//                    .build();
+//            client.send(request, HttpResponse.BodyHandlers.ofString());
         }
     }
 
@@ -81,7 +80,6 @@ public class ApiController {
         if (memberList.contains(member)) {
             throw new BadRequestException("Member list contains member");
         }
-
         return ResponseEntity.ok().build();
     }
 
@@ -110,7 +108,7 @@ public class ApiController {
                     memberList.remove(member);
                 }
             }
-            case RANDOM_MESSAGE -> {}
+            case RANDOM_MESSAGE -> log.info("Received message: {}", ((RandomMessage) message).getData());
         }
     }
 }
