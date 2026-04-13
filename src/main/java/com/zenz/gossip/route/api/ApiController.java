@@ -3,6 +3,7 @@ package com.zenz.gossip.route.api;
 import com.zenz.gossip.config.ClusterConfig;
 import com.zenz.gossip.message.*;
 import com.zenz.gossip.route.api.request.JoinRequest;
+import com.zenz.gossip.route.api.request.MessageRequest;
 import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.api.request.PongRequest;
 import com.zenz.gossip.route.exception.BadRequestException;
@@ -75,6 +76,11 @@ public class ApiController {
         if (memberList.contains(member)) {
             throw new BadRequestException("Member list contains member");
         }
+    }
+
+    @PostMapping("/message")
+    public void message(@RequestBody MessageRequest body) {
+        pendingMessages.add(new RandomMessage(body.getData()));
     }
 
     private void sendPongRequest(final InetSocketAddress address) throws IOException, InterruptedException {
