@@ -13,8 +13,6 @@ import com.zenz.gossip.util.MemberStatus;
 import com.zenz.gossip.util.PendingMessages;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -37,6 +36,8 @@ public class ApiController {
 
     private final PendingMessages pendingMessages;
 
+    private final ClusterConfig clusterConfig;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -50,19 +51,12 @@ public class ApiController {
             handleMessage(message);
         }
 
-        try (final HttpClient client = HttpClient.newHttpClient()) {
-//            final PongRequest pongRequest = new PongRequest(ClusterConfig.getn);
-//
-//            final HttpRequest request = HttpRequest.newBuilder()
-//                    .uri(URI.create(member.getAddress() + "/pong"))
-//                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pongRequest)))
-//                    .build();
-//            client.send(request, HttpResponse.BodyHandlers.ofString());
-        }
+        sendPongRequest(member.getAddress());
     }
 
     @PostMapping("/pong")
     public void pong(@RequestBody PongRequest body) {
+        log.info("Pong Request: {}", body);
         final Member member = memberList.get(body.getNodeId());
         if (member == null) {
             throw new NotFoundException("Member not found");
@@ -75,18 +69,31 @@ public class ApiController {
     }
 
     @PostMapping("/join")
-    public ResponseEntity<?> join(@RequestBody JoinRequest body) {
+    public void join(@RequestBody JoinRequest body) {
+        log.info("Join request {}", body);
         final Member member = new Member(body.getNodeId(), body.getAddress());
         if (memberList.contains(member)) {
             throw new BadRequestException("Member list contains member");
         }
-        return ResponseEntity.ok().build();
+    }
+
+    private void sendPongRequest(final InetSocketAddress address) throws IOException, InterruptedException {
+        try (final HttpClient client = HttpClient.newHttpClient()) {
+            final PongRequest pongRequest = new PongRequest(clusterConfig.getNodeId());
+
+            final HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(String.format("http://%s:%s/pong", address.getHostString(), address.getPort())))
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pongRequest)))
+                    .header("Content-Type", "application/json")
+                    .build();
+            client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
     }
 
     private void handleMessage(final Message message) {
         switch (message.getType()) {
             case MEMBER_SUSPICIOUS -> {
-                final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage)  message;
+                final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage) message;
                 final Member member = memberList.get(memberSuspiciousMessage.getNodeId());
                 if (member != null && member.getStatus() != MemberStatus.SUSPICIOUS) {
                     member.setStatus(MemberStatus.SUSPICIOUS);
@@ -96,7 +103,7 @@ public class ApiController {
             case MEMBER_ALIVE -> {
                 final MemberAliveMessage memberAliveMessage = (MemberAliveMessage) message;
                 final Member member = memberList.get(memberAliveMessage.getNodeId());
-                if (member != null && member.getStatus() !=  MemberStatus.ALIVE) {
+                if (member != null && member.getStatus() != MemberStatus.ALIVE) {
                     member.setStatus(MemberStatus.ALIVE);
                     pendingMessages.add(memberAliveMessage);
                 }

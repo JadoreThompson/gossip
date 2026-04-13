@@ -1,14 +1,14 @@
 cluster:
-  node-id: node-1
-  address: localhost,8080
+  node-id: node-2
   failure-timeout: 30000
+  address: localhost,9090
   members:
-    - node-2,localhost,9090
+    - node-1,localhost,8080
 spring:
   application:
     name: gossip
 server:
-  port: 8080
+  port: 9090
 logging:
   level:
-    root: info
+    root: INFO

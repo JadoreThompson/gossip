@@ -1,6 +1,5 @@
 package com.zenz.gossip.config.converter;
 
-import com.zenz.gossip.util.Member;
 import org.springframework.boot.context.properties.ConfigurationPropertiesBinding;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
@@ -9,15 +8,14 @@ import java.net.InetSocketAddress;
 
 @Component
 @ConfigurationPropertiesBinding
-public class StringToMemberConverter implements Converter<String, Member> {
+public class StringToInetSocketAddressConverter implements Converter<String, InetSocketAddress> {
 
     @Override
-    public Member convert(final String source) {
+    public InetSocketAddress convert(final String source) {
         final String[] parts = source.split(",");
-        final String nodeId = parts[0];
-        final String host = parts[1];
-        final int port = Integer.parseInt(parts[2]);
+        final String host = parts[0].trim();
+        final int port = Integer.parseInt(parts[1].trim());
 
-        return new Member(nodeId, new InetSocketAddress(host, port));
+        return new InetSocketAddress(host, port);
     }
 }

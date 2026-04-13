@@ -6,7 +6,7 @@ import java.util.*;
 public class MemberList {
 
     private final Random random = new Random();
-    private final Set<Member> members =  new HashSet<>();
+    private final Set<Member> members = new HashSet<>();
 
     public void add(final Member member) {
         synchronized (members) {
@@ -45,6 +45,12 @@ public class MemberList {
     public boolean contains(final Member member) {
         synchronized (members) {
             return members.contains(member);
+        }
+    }
+
+    public void addAll(final Collection<Member> member) {
+        synchronized (members) {
+            members.addAll(member);
         }
     }
 }
