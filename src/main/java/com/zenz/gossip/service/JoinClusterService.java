@@ -6,7 +6,9 @@ import com.zenz.gossip.route.api.request.RequestType;
 import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +27,9 @@ public class JoinClusterService {
     private final ClusterConfig clusterConfig;
     private final MemberList memberList;
     private final ObjectMapper objectMapper;
+    @Getter
+    @Setter
+    private HttpClient client = HttpClient.newHttpClient();
 
     @PostConstruct
     public void init() throws InterruptedException, IOException {
@@ -54,31 +59,29 @@ public class JoinClusterService {
 
         log.info("Formed request {}", joinRequest);
 
-        try (final HttpClient client = HttpClient.newHttpClient()) {
-            while (!success) {
-                for (Member member : clusterConfig.getMembers()) {
-                    final HttpRequest request = HttpRequest
-                            .newBuilder()
-                            .uri(URI.create(String.format("http://%s:%s/join", member.getAddress().getHostString(), member.getAddress().getPort())))
-                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(joinRequest)))
-                            .header("Content-Type", "application/json")
-                            .build();
-                    log.info("Sending join request to member " + member.getNodeId() + ", URI " + request.uri());
-                    try {
-                        final HttpResponse<?> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-                        if (response.statusCode() == 200) {
-                            success = true;
-                            log.info("Adding all config members to member list");
-                            memberList.addAll(clusterConfig.getMembers());
-                            break;
-                        }
-                    } catch (IOException | InterruptedException e) {
-                        e.printStackTrace();
+        while (!success) {
+            for (Member member : clusterConfig.getMembers()) {
+                final HttpRequest request = HttpRequest
+                        .newBuilder()
+                        .uri(URI.create(String.format("http://%s:%s/join", member.getAddress().getHostString(), member.getAddress().getPort())))
+                        .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(joinRequest)))
+                        .header("Content-Type", "application/json")
+                        .build();
+                log.info("Sending join request to member " + member.getNodeId() + ", URI " + request.uri());
+                try {
+                    final HttpResponse<?> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() == 200) {
+                        success = true;
+                        log.info("Adding all config members to member list");
+                        memberList.addAll(clusterConfig.getMembers());
+                        break;
                     }
+                } catch (IOException | InterruptedException e) {
+                    e.printStackTrace();
                 }
-
-                Thread.sleep(5000L);
             }
+
+            Thread.sleep(5000L);
         }
 
         log.info("Successfully joined cluster");
