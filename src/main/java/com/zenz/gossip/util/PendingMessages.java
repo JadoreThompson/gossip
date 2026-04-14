@@ -14,6 +14,12 @@ public class PendingMessages implements Iterable<Message> {
         }
     }
 
+    public void clear() {
+        synchronized (messages) {
+            messages.clear();
+        }
+    }
+
     public boolean remove(final Message message) {
         synchronized (messages) {
             return messages.remove(message);

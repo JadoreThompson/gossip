@@ -18,6 +18,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +31,16 @@ public class FailureDetectionService {
 
     private final ClusterConfig clusterConfig;
 
-    private final HttpClient httpClient = HttpClient.newHttpClient();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private HttpClient httpClient = HttpClient.newHttpClient();
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    public void setClient(final HttpClient httpClient) {
+        this.httpClient = httpClient;
+    }
+
+    public void setObjectMapper(final ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @PostConstruct
     public void init() throws InterruptedException, IOException {
@@ -58,11 +67,13 @@ public class FailureDetectionService {
         }
     }
 
-    private void sendPingRequest(final Member member) throws IOException, InterruptedException {
+    void sendPingRequest(final Member member) throws IOException, InterruptedException {
         final PingRequest pingRequest = new PingRequest(clusterConfig.getNodeId(), member.getNodeId());
-        for (Message message : pendingMessages) {
+        final List<Message> messages = pendingMessages.toList();
+        for (Message message : messages) {
             pingRequest.getPayload().add(message);
         }
+        pendingMessages.clear();
 
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(String.format(
