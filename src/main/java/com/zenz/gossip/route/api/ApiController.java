@@ -29,7 +29,6 @@ import java.net.http.HttpResponse;
 
 @RestController
 @RequestMapping
-@RequiredArgsConstructor
 @Slf4j
 public class ApiController {
 
@@ -39,25 +38,51 @@ public class ApiController {
 
     private final ClusterConfig clusterConfig;
 
+    private HttpClient httpClient = HttpClient.newHttpClient();
+
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ApiController.class);
+
+    public ApiController(final MemberList memberList, final PendingMessages pendingMessages, final ClusterConfig clusterConfig) {
+        this.memberList = memberList;
+        this.pendingMessages = pendingMessages;
+        this.clusterConfig = clusterConfig;
+    }
+
+    public void setHttpClient(final HttpClient httpClient) {
+        this.httpClient = httpClient;
+    }
 
     @PostMapping("/ping")
     public void ping(@RequestBody PingRequest body) throws IOException, InterruptedException {
         final Member member = memberList.get(body.getNodeId());
         if (member == null) {
-            throw new NotFoundException("Member not found");
+            throw new NotFoundException("Requesting member not found");
         }
 
         for (Message message : body.getPayload()) {
             handleMessage(message);
         }
 
-        sendPongRequest(member.getAddress());
+        if (!body.getTarget().equals(clusterConfig.getNodeId())) {
+            final Member targetMember = memberList.get(body.getTarget());
+            if (targetMember == null) {
+                throw new NotFoundException("Target member not found");
+            }
+
+            final PingRequest pingRequest = new PingRequest(clusterConfig.getNodeId(), body.getTarget());
+            pingRequest.getPayload().addAll(body.getPayload());
+            sendPingRequest(pingRequest, member.getAddress());
+            sendPongRequest(new PongRequest(body.getTarget()), member.getAddress());
+            return;
+        }
+
+        sendPongRequest(new PongRequest(clusterConfig.getNodeId()), member.getAddress());
     }
 
     @PostMapping("/pong")
     public void pong(@RequestBody PongRequest body) {
-        log.info("Pong Request: {}", body);
         final Member member = memberList.get(body.getNodeId());
         if (member == null) {
             throw new NotFoundException("Member not found");
@@ -83,23 +108,34 @@ public class ApiController {
         pendingMessages.add(new RandomMessage(body.getData()));
     }
 
-    private void sendPongRequest(final InetSocketAddress address) throws IOException, InterruptedException {
-        try (final HttpClient client = HttpClient.newHttpClient()) {
-            final PongRequest pongRequest = new PongRequest(clusterConfig.getNodeId());
+    private void sendPongRequest(final PongRequest pongRequest, final InetSocketAddress address) throws IOException, InterruptedException {
+        final HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(String.format("http://%s:%s/pong", address.getHostString(), address.getPort())))
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pongRequest)))
+                .header("Content-Type", "application/json")
+                .build();
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
 
-            final HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(String.format("http://%s:%s/pong", address.getHostString(), address.getPort())))
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pongRequest)))
-                    .header("Content-Type", "application/json")
-                    .build();
-            client.send(request, HttpResponse.BodyHandlers.ofString());
-        }
+    private void sendPingRequest(final PingRequest pingRequest, final InetSocketAddress address) throws IOException, InterruptedException {
+        final HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(String.format("http://%s:%s/ping", address.getHostString(), address.getPort())))
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pingRequest)))
+                .header("Content-Type", "application/json")
+                .build();
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private void handleMessage(final Message message) {
         switch (message.getType()) {
             case MEMBER_SUSPICIOUS -> {
                 final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage) message;
+                if (memberSuspiciousMessage.getTarget().equals(clusterConfig.getNodeId())) {
+                    clusterConfig.setIncarnation(clusterConfig.getIncarnation() + 1);
+                    pendingMessages.add(new MemberAliveMessage(clusterConfig.getNodeId(), clusterConfig.getIncarnation()));
+                    return;
+                }
+
                 final Member member = memberList.get(memberSuspiciousMessage.getNodeId());
                 if (member != null && member.getStatus() != MemberStatus.SUSPICIOUS) {
                     member.setStatus(MemberStatus.SUSPICIOUS);
@@ -116,6 +152,12 @@ public class ApiController {
             }
             case MEMBER_DEAD -> {
                 final MemberDeadMessage memberDeadMessage = (MemberDeadMessage) message;
+                if (memberDeadMessage.getTarget().equals(clusterConfig.getNodeId())) {
+                    clusterConfig.setIncarnation(clusterConfig.getIncarnation() + 1);
+                    pendingMessages.add(new MemberAliveMessage(clusterConfig.getNodeId(), clusterConfig.getIncarnation()));
+                    return;
+                }
+
                 final Member member = memberList.get(memberDeadMessage.getNodeId());
                 if (member != null) {
                     memberList.remove(member);

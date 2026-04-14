@@ -1,12 +1,15 @@
 package com.zenz.gossip.service;
 
 import com.zenz.gossip.config.ClusterConfig;
+import com.zenz.gossip.message.MemberDeadMessage;
+import com.zenz.gossip.message.MemberSuspiciousMessage;
 import com.zenz.gossip.message.Message;
 import com.zenz.gossip.route.api.request.JoinRequest;
 import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.api.request.RequestType;
 import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
+import com.zenz.gossip.util.MemberStatus;
 import com.zenz.gossip.util.PendingMessages;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -22,18 +25,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class FailureDetectionService {
 
-    private final MemberList memberList;
+    private MemberList memberList;
 
-    private final PendingMessages pendingMessages;
+    private PendingMessages pendingMessages;
 
-    private final ClusterConfig clusterConfig;
+    private ClusterConfig clusterConfig;
 
     @Getter
     @Setter
@@ -41,6 +44,17 @@ public class FailureDetectionService {
 
     @Setter
     private ObjectMapper objectMapper = new ObjectMapper();
+
+    private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FailureDetectionService.class);
+
+    public FailureDetectionService() {
+    }
+
+    public FailureDetectionService(final MemberList memberList, final PendingMessages pendingMessages, final ClusterConfig clusterConfig) {
+        this.memberList = memberList;
+        this.pendingMessages = pendingMessages;
+        this.clusterConfig = clusterConfig;
+    }
 
     @PostConstruct
     public void init() {
@@ -60,7 +74,7 @@ public class FailureDetectionService {
         detectFailures();
     }
 
-    void joinCluster() throws InterruptedException {
+    public void joinCluster() throws InterruptedException {
         log.info("Starting cluster join");
         boolean success = false;
         final JoinRequest joinRequest = new JoinRequest(
@@ -99,8 +113,8 @@ public class FailureDetectionService {
         log.info("Successfully joined cluster");
     }
 
-    void sendPingRequest(final Member member) throws IOException, InterruptedException {
-        final PingRequest pingRequest = new PingRequest(clusterConfig.getNodeId(), member.getNodeId());
+    HttpResponse<String> sendPingRequest(final PingRequest pingRequest, final Member member) throws IOException, InterruptedException {
+//        final PingRequest pingRequest = new PingRequest(clusterConfig.getNodeId(), member.getNodeId());
         final List<Message> messages = pendingMessages.toList();
         for (Message message : messages) {
             pingRequest.getPayload().add(message);
@@ -115,32 +129,67 @@ public class FailureDetectionService {
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pingRequest)))
                 .header("Content-Type", "application/json")
                 .build();
-        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    void detectFailures() throws InterruptedException {
+    public void detectFailures() throws InterruptedException {
+        log.info("Sleeping for " + clusterConfig.getFailureTimeout() + " milliseconds");
+//        try {
+//            Thread.sleep(clusterConfig.getFailureTimeout());
+//        } catch (InterruptedException e) {
+//            return;
+//        }
         if (clusterConfig.getFailureTimeout() == 0) {
-            log.warn("Failure timeout is 0. Stopping loop");
             return;
         }
 
-        while (true) {
-            log.info("Sleeping for " + clusterConfig.getFailureTimeout() + " milliseconds");
-            Thread.sleep(clusterConfig.getFailureTimeout());
+        final Member member = memberList.getRandom();
+        if (member == null) {
+            log.info("Member list empty. No member found");
+            return;
+        }
 
-            final Member member = memberList.getRandom();
-            if (member == null) {
-                log.info("No member found");
-                continue;
+        try {
+            sendPingRequest(new PingRequest(clusterConfig.getNodeId(), member.getNodeId()), member);
+        } catch (IOException | InterruptedException e) {
+            final int maxFailures = memberList.size() - 1;
+            final List<Member> edgeMembers = new ArrayList<>();
+            for (int i = 0; i < memberList.size(); i++) {
+                if (edgeMembers.size() == maxFailures) {
+                    break;
+                }
+                final Member edgeMember = memberList.getRandom();
+                if (edgeMember == member) {
+                    continue;
+                }
+                edgeMembers.add(edgeMember);
             }
 
-            try {
-                sendPingRequest(member);
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
+            int failureCount = 0;
+            for (Member edgeMember : edgeMembers) {
+                try {
+                    sendPingRequest(new PingRequest(clusterConfig.getNodeId(), edgeMember.getNodeId()), edgeMember);
+                } catch (IOException | InterruptedException e2) {
+                    ++failureCount;
+                }
+            }
+
+            if (failureCount == maxFailures) {
+                if (member.getStatus() == MemberStatus.SUSPICIOUS) {
+                    memberList.remove(member);
+                    pendingMessages.add(new MemberDeadMessage(
+                            clusterConfig.getNodeId(), member.getNodeId(), member.getIncarnation()));
+                } else {
+                    member.setStatus(MemberStatus.SUSPICIOUS);
+                    pendingMessages.add(new MemberSuspiciousMessage(
+                            clusterConfig.getNodeId(), member.getNodeId(), member.getIncarnation()));
+                }
+            } else {
+                member.setStatus(MemberStatus.ALIVE);
             }
         }
     }
+
 
     @PreDestroy
     public void destroy() {

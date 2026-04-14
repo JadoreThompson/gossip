@@ -53,4 +53,10 @@ public class MemberList {
             members.addAll(member);
         }
     }
+
+    public int size() {
+        synchronized (members) {
+            return members.size();
+        }
+    }
 }
