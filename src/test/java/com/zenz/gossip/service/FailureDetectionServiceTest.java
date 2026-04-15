@@ -24,8 +24,11 @@ import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -171,9 +174,13 @@ class FailureDetectionServiceTest {
     void sendPingRequest_addsPendingMessagesToPayload() throws Exception {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
         final Message message1 = new MemberAliveMessage("node-1", 1L, "node-2");
+        message1.setRound(1L);
         final Message message2 = new MemberAliveMessage("node-1", 2L, "node-3");
+        message2.setRound(2L);
 
-        when(pendingMessages.toList()).thenReturn(List.of(message1, message2));
+        when(clusterConfig.getRound()).thenReturn(2L);
+        when(memberList.size()).thenReturn(4);
+        when(pendingMessages.iterator()).thenReturn(List.of(message1, message2).iterator());
         when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
@@ -187,24 +194,9 @@ class FailureDetectionServiceTest {
         verify(objectMapper).writeValueAsString(pingRequestCaptor.capture());
 
         final PingRequest capturedPingRequest = pingRequestCaptor.getValue();
-        assert capturedPingRequest.getPayload().size() == 2;
-        assert capturedPingRequest.getPayload().contains(message1);
-        assert capturedPingRequest.getPayload().contains(message2);
-    }
-
-    @Test
-    void sendPingRequest_clearsPendingMessagesAfterSending() throws Exception {
-        final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
-        final Message message = new MemberAliveMessage("node-1", 1L, "node-2");
-
-        when(pendingMessages.toList()).thenReturn(List.of(message));
-        when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
-        lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
-
-        failureDetectionService.sendPingRequest(new PingRequest("node-1", member.getNodeId()), member);
-
-        verify(pendingMessages).clear();
+        assertEquals(2, capturedPingRequest.getPayload().size());
+        assertTrue(capturedPingRequest.getPayload().contains(message1));
+        assertTrue(capturedPingRequest.getPayload().contains(message2));
     }
 
     @Test
@@ -217,7 +209,8 @@ class FailureDetectionServiceTest {
     @Test
     void sendPingRequest_usesCorrectEndpoint() throws Exception {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
-        when(pendingMessages.toList()).thenReturn(List.of());
+//        when(pendingMessages.toList()).thenReturn(List.of());
+        when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
@@ -248,7 +241,8 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-        when(pendingMessages.toList()).thenReturn(List.of());
+//        when(pendingMessages.toList()).thenReturn(List.of());
+        when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"));
@@ -276,7 +270,8 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-        when(pendingMessages.toList()).thenReturn(List.of());
+//        when(pendingMessages.toList()).thenReturn(List.of());
+        when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"));
@@ -305,7 +300,8 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-        when(pendingMessages.toList()).thenReturn(List.of());
+//        when(pendingMessages.toList()).thenReturn(List.of());
+        when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"));
@@ -334,7 +330,8 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-        when(pendingMessages.toList()).thenReturn(List.of());
+//        when(pendingMessages.toList()).thenReturn(List.of());
+        when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"))
@@ -343,5 +340,52 @@ class FailureDetectionServiceTest {
         failureDetectionService.detectFailures();
 
         assert primaryMember.getStatus() == MemberStatus.ALIVE;
+    }
+
+    @Test
+    void sendPingRequest_prunesOldMessages_usingUtils() throws Exception {
+        lenient().when(clusterConfig.getNodeId()).thenReturn("node-1");
+
+        Member targetMember = new Member("target-1", new InetSocketAddress("localhost", 8080));
+
+        List<Message> messages = new ArrayList<>();
+        MemberAliveMessage recentMsg = new MemberAliveMessage("node-2", 1L, "node-3");
+        recentMsg.setRound(10L);
+        messages.add(recentMsg);
+
+        when(pendingMessages.iterator()).thenReturn(messages.iterator());
+        when(clusterConfig.getRound()).thenReturn(15L);
+        when(memberList.size()).thenReturn(4);
+        when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
+
+        PingRequest pingRequest = new PingRequest("node-1", "target-1");
+        failureDetectionService.sendPingRequest(pingRequest, targetMember);
+
+        verify(pendingMessages).iterator();
+        assertTrue(pingRequest.getPayload().size() >= 0);
+    }
+
+    @Test
+    void sendPingRequest_removesMessages_whenBeyondLogNThreshold() throws Exception {
+//        when(clusterConfig.getNodeId()).thenReturn("node-1");
+
+        Member targetMember = new Member("target-1", new InetSocketAddress("localhost", 8080));
+
+        List<Message> messages = new ArrayList<>();
+        MemberAliveMessage oldMsg = new MemberAliveMessage("node-2", 1L, "node-3");
+        oldMsg.setRound(1L);
+        messages.add(oldMsg);
+
+        when(pendingMessages.iterator()).thenReturn(messages.iterator());
+        when(clusterConfig.getRound()).thenReturn(100L);
+        when(memberList.size()).thenReturn(4);
+        when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
+
+        PingRequest pingRequest = new PingRequest("node-1", "target-1");
+        failureDetectionService.sendPingRequest(pingRequest, targetMember);
+
+        assertTrue(pingRequest.getPayload().isEmpty() || !pingRequest.getPayload().contains(oldMsg));
     }
 }

@@ -27,11 +27,24 @@ public class ClusterConfig {
 
     private List<Member> members;
 
-    public long setIncarnation(final long incarnation) {
-        if (incarnation > this.incarnation) {
-            this.incarnation = incarnation;
-        }
+    private long round;
 
-        return this.incarnation;
+    private final Object roundLock = new Object();
+    private final Object incarnationLock = new Object();
+
+    public long setIncarnation(final long incarnation) {
+        synchronized (incarnationLock) {
+            if (incarnation > this.incarnation) {
+                this.incarnation = incarnation;
+            }
+
+            return this.incarnation;
+        }
+    }
+
+    public long incrementRound() {
+        synchronized (roundLock) {
+            return ++round;
+        }
     }
 }

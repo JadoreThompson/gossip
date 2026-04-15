@@ -9,25 +9,25 @@ public class PendingMessages implements Iterable<Message> {
     private final Set<Message> messages = new HashSet<>();
 
     public void add(final Message message) {
-        synchronized (messages) {
+        synchronized (this) {
             messages.add(message);
         }
     }
 
     public void clear() {
-        synchronized (messages) {
+        synchronized (this) {
             messages.clear();
         }
     }
 
     public boolean remove(final Message message) {
-        synchronized (messages) {
+        synchronized (this) {
             return messages.remove(message);
         }
     }
 
     public List<Message> toList() {
-        synchronized (messages) {
+        synchronized (this) {
             return new ArrayList<>(messages);
         }
     }

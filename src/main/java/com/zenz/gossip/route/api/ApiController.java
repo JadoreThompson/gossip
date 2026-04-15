@@ -8,10 +8,7 @@ import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.api.request.PongRequest;
 import com.zenz.gossip.route.exception.BadRequestException;
 import com.zenz.gossip.route.exception.NotFoundException;
-import com.zenz.gossip.util.Member;
-import com.zenz.gossip.util.MemberList;
-import com.zenz.gossip.util.MemberStatus;
-import com.zenz.gossip.util.PendingMessages;
+import com.zenz.gossip.util.*;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,10 +37,6 @@ public class ApiController {
 
     @Setter
     private HttpClient httpClient = HttpClient.newHttpClient();
-
-    public void setHttpClient(HttpClient httpClient) {
-        this.httpClient = httpClient;
-    }
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -88,7 +81,9 @@ public class ApiController {
         }
 
         if (member.getStatus() == MemberStatus.SUSPICIOUS) {
-            pendingMessages.add(new MemberAliveMessage(clusterConfig.getNodeId(), member.getIncarnation(), member.getNodeId()));
+            final MemberAliveMessage msg = new MemberAliveMessage(clusterConfig.getNodeId(), member.getIncarnation(), member.getNodeId());
+            msg.setRound(clusterConfig.getRound());
+            pendingMessages.add(msg);
             member.setStatus(MemberStatus.ALIVE);
         }
     }
@@ -104,7 +99,9 @@ public class ApiController {
 
     @PostMapping("/message")
     public void message(@RequestBody MessageRequest body) {
-        pendingMessages.add(new RandomMessage(body.getData()));
+        final RandomMessage msg = new RandomMessage(body.getData());
+        msg.setRound(clusterConfig.getRound());
+        pendingMessages.add(msg);
     }
 
     private void sendPongRequest(final PongRequest pongRequest, final InetSocketAddress address) throws IOException, InterruptedException {
@@ -117,6 +114,7 @@ public class ApiController {
     }
 
     private void sendPingRequest(final PingRequest pingRequest, final InetSocketAddress address) throws IOException, InterruptedException {
+        Utils.addPendingMessages(pingRequest, pendingMessages, memberList, clusterConfig.getRound());
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(String.format("http://%s:%s/ping", address.getHostString(), address.getPort())))
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(pingRequest)))
@@ -131,14 +129,17 @@ public class ApiController {
                 final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage) message;
                 if (memberSuspiciousMessage.getTarget().equals(clusterConfig.getNodeId())) {
                     clusterConfig.setIncarnation(clusterConfig.getIncarnation() + 1);
-                    pendingMessages.add(new MemberAliveMessage(
-                            clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId()));
+                    final MemberAliveMessage aliveMsg = new MemberAliveMessage(
+                            clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId());
+                    aliveMsg.setRound(clusterConfig.getRound());
+                    pendingMessages.add(aliveMsg);
                     return;
                 }
 
                 final Member member = memberList.get(memberSuspiciousMessage.getTarget());
                 if (member != null && memberSuspiciousMessage.getIncarnation() > member.getIncarnation()) {
                     member.setStatus(MemberStatus.SUSPICIOUS);
+                    memberSuspiciousMessage.setRound(clusterConfig.getRound());
                     pendingMessages.add(memberSuspiciousMessage);
                 }
             }
@@ -154,6 +155,7 @@ public class ApiController {
                 if (member != null && memberAliveMessage.getIncarnation() > member.getIncarnation()) {
                     member.setIncarnation(memberAliveMessage.getIncarnation());
                     member.setStatus(MemberStatus.ALIVE);
+                    memberAliveMessage.setRound(clusterConfig.getRound());
                     pendingMessages.add(memberAliveMessage);
                 }
             }
@@ -163,14 +165,17 @@ public class ApiController {
                     if (memberDeadMessage.getIncarnation() >= clusterConfig.getIncarnation()) {
                         clusterConfig.setIncarnation(memberDeadMessage.getIncarnation() + 1);
                     }
-                    pendingMessages.add(new MemberAliveMessage(
-                            clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId()));
+                    final MemberAliveMessage aliveMsg = new MemberAliveMessage(
+                            clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId());
+                    aliveMsg.setRound(clusterConfig.getRound());
+                    pendingMessages.add(aliveMsg);
                     return;
                 }
 
                 final Member member = memberList.get(memberDeadMessage.getTarget());
                 if (member != null && memberDeadMessage.getIncarnation() > member.getIncarnation()) {
                     memberList.remove(member);
+                    memberDeadMessage.setRound(clusterConfig.getRound());
                     pendingMessages.add(memberDeadMessage);
                 }
             }

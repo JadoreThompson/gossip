@@ -8,8 +8,19 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = MemberAliveMessage.class, name = "ALIVE"),
         @JsonSubTypes.Type(value = RandomMessage.class, name = "RANDOM_MESSAGE"),
         @JsonSubTypes.Type(value = MemberDeadMessage.class, name = "MEMBER_DEAD"),
+        @JsonSubTypes.Type(value = MemberSuspiciousMessage.class, name = "MEMBER_SUSPICIOUS")
 })
 public interface Message {
 
+    /**
+     * The type of the message
+     */
     MessageType getType();
+
+    /**
+     * The round the message was conceived in
+     */
+    long getRound();
+
+    void setRound(long round);
 }

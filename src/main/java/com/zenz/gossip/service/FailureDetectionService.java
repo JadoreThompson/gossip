@@ -3,18 +3,13 @@ package com.zenz.gossip.service;
 import com.zenz.gossip.config.ClusterConfig;
 import com.zenz.gossip.message.MemberDeadMessage;
 import com.zenz.gossip.message.MemberSuspiciousMessage;
-import com.zenz.gossip.message.Message;
 import com.zenz.gossip.route.api.request.JoinRequest;
 import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.api.request.RequestType;
-import com.zenz.gossip.util.Member;
-import com.zenz.gossip.util.MemberList;
-import com.zenz.gossip.util.MemberStatus;
-import com.zenz.gossip.util.PendingMessages;
+import com.zenz.gossip.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,8 +40,6 @@ public class FailureDetectionService {
     @Setter
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FailureDetectionService.class);
-
     public FailureDetectionService() {
     }
 
@@ -71,7 +64,11 @@ public class FailureDetectionService {
     public void run() throws IOException, InterruptedException {
         log.info("Starting gossip service");
         joinCluster();
-        detectFailures();
+        while (true) {
+            Thread.sleep(clusterConfig.getFailureTimeout());
+            clusterConfig.incrementRound();
+            detectFailures();
+        }
     }
 
     public void joinCluster() throws InterruptedException {
@@ -114,13 +111,11 @@ public class FailureDetectionService {
     }
 
     HttpResponse<String> sendPingRequest(final PingRequest pingRequest, final Member member) throws IOException, InterruptedException {
-//        final PingRequest pingRequest = new PingRequest(clusterConfig.getNodeId(), member.getNodeId());
-        final List<Message> messages = pendingMessages.toList();
-        for (Message message : messages) {
-            pingRequest.getPayload().add(message);
-        }
-        pendingMessages.clear();
-
+//        for (Message message : messages) {
+//            pingRequest.getPayload().add(message);
+//        }
+//        pendingMessages.clear();
+        Utils.addPendingMessages(pingRequest, pendingMessages, memberList, clusterConfig.getRound());
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(String.format(
                         "http://%s:%s/ping",
@@ -132,13 +127,8 @@ public class FailureDetectionService {
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    public void detectFailures() throws InterruptedException {
+    public void detectFailures() {
         log.info("Sleeping for " + clusterConfig.getFailureTimeout() + " milliseconds");
-//        try {
-//            Thread.sleep(clusterConfig.getFailureTimeout());
-//        } catch (InterruptedException e) {
-//            return;
-//        }
         if (clusterConfig.getFailureTimeout() == 0) {
             return;
         }
@@ -177,12 +167,18 @@ public class FailureDetectionService {
             if (failureCount == maxFailures) {
                 if (member.getStatus() == MemberStatus.SUSPICIOUS) {
                     memberList.remove(member);
-                    pendingMessages.add(new MemberDeadMessage(
-                            clusterConfig.getNodeId(), member.getNodeId(), member.getIncarnation()));
+                    final MemberDeadMessage msg = new MemberDeadMessage(
+                            clusterConfig.getNodeId(), member.getNodeId(), member.getIncarnation());
+                    msg.setRound(clusterConfig.getRound());
+                    clusterConfig.incrementRound();
+                    pendingMessages.add(msg);
                 } else {
                     member.setStatus(MemberStatus.SUSPICIOUS);
-                    pendingMessages.add(new MemberSuspiciousMessage(
-                            clusterConfig.getNodeId(), member.getNodeId(), member.getIncarnation()));
+                    final MemberSuspiciousMessage msg = new MemberSuspiciousMessage(
+                            clusterConfig.getNodeId(), member.getNodeId(), member.getIncarnation());
+                    msg.setRound(clusterConfig.getRound());
+                    clusterConfig.incrementRound();
+                    pendingMessages.add(msg);
                 }
             } else {
                 member.setStatus(MemberStatus.ALIVE);
