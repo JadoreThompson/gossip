@@ -12,4 +12,6 @@ public class MemberAliveMessage implements Message {
     private final String nodeId;
 
     private final long incarnation;
+
+    private final String target;
 }

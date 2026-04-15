@@ -1,10 +1,14 @@
 package com.zenz.gossip.route.api;
 
 import com.zenz.gossip.config.ClusterConfig;
+import com.zenz.gossip.message.MemberAliveMessage;
+import com.zenz.gossip.message.MemberDeadMessage;
+import com.zenz.gossip.message.MemberSuspiciousMessage;
 import com.zenz.gossip.route.api.request.PingRequest;
 import com.zenz.gossip.route.exception.NotFoundException;
 import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
+import com.zenz.gossip.util.MemberStatus;
 import com.zenz.gossip.util.PendingMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -159,5 +163,186 @@ class ApiControllerTest {
                 requestSent.uri().toString().contains("/pong"),
                 "Expected only a /pong request when target is self"
         );
+    }
+
+    @Test
+    void ping_handlesMemberSuspicious_updatesStatusAndForwardsMessage() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member target = new Member("node-2", new InetSocketAddress("localhost", 8081));
+        Member suspiciousMember = new Member("node-3", new InetSocketAddress("localhost", 8082));
+
+        MemberSuspiciousMessage msg =
+                new MemberSuspiciousMessage("node-1", "node-3", 1L);
+
+        request.getPayload().add(msg);
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(memberList.get("node-2")).thenReturn(target);
+        when(memberList.get("node-3")).thenReturn(suspiciousMember);
+        when(clusterConfig.getNodeId()).thenReturn("edge-node");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        apiController.ping(request);
+
+        assertEquals(MemberStatus.SUSPICIOUS, suspiciousMember.getStatus());
+        assertEquals(MemberStatus.ALIVE, target.getStatus());
+    }
+
+    @Test
+    void ping_handlesMemberSuspiciousForSelf_incrementsIncarnationAndAddsAliveMessage() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(clusterConfig.getNodeId()).thenReturn("node-2");
+        when(clusterConfig.getIncarnation()).thenReturn(5L);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        MemberSuspiciousMessage msg =
+                new MemberSuspiciousMessage("node-3", "node-2", 1L);
+
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        verify(clusterConfig).setIncarnation(6L);
+        verify(pendingMessages).add(any(MemberAliveMessage.class));
+    }
+
+    @Test
+    void ping_handlesMemberAlive_updatesIncarnationWhenHigher() throws Exception {
+        PingRequest request = new PingRequest("node-1", "edge");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member member = new Member("node-3", new InetSocketAddress("localhost", 8081));
+        member.setIncarnation(3L);
+        member.setStatus(MemberStatus.SUSPICIOUS);
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(memberList.get("node-3")).thenReturn(member);
+        when(clusterConfig.getNodeId()).thenReturn("edge");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        MemberAliveMessage msg = new MemberAliveMessage("node-1", 5L, "node-3");
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        assertEquals(MemberStatus.ALIVE, member.getStatus());
+        assertEquals(5L, member.getIncarnation());
+    }
+
+    @Test
+    void ping_handlesMemberDead_removesMemberAndBuffersMessage() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-3");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member victim = new Member("node-3", new InetSocketAddress("localhost", 8081));
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(memberList.get("node-3")).thenReturn(victim);
+        when(clusterConfig.getNodeId()).thenReturn("edge");
+        when(objectMapper.writeValueAsString(any())).thenReturn("");
+
+        MemberDeadMessage msg =
+                new MemberDeadMessage(requester.getNodeId(), victim.getNodeId(), 2L);
+
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        verify(memberList).remove(victim);
+        verify(pendingMessages).add(any(MemberDeadMessage.class));
+    }
+
+    @Test
+    void ping_ignoresStaleMemberSuspiciousWhenIncarnationIsLower() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member target = new Member("node-2", new InetSocketAddress("localhost", 8081));
+        Member staleSuspect = new Member("node-3", new InetSocketAddress("localhost", 8082));
+        staleSuspect.setIncarnation(10L);
+        staleSuspect.setStatus(MemberStatus.ALIVE);
+
+        MemberSuspiciousMessage msg =
+                new MemberSuspiciousMessage("node-1", "node-3", 5L);
+
+        request.getPayload().add(msg);
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(memberList.get("node-2")).thenReturn(target);
+        when(memberList.get("node-3")).thenReturn(staleSuspect);
+        when(clusterConfig.getNodeId()).thenReturn("edge-node");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        apiController.ping(request);
+
+        assertEquals(MemberStatus.ALIVE, staleSuspect.getStatus());
+        assertEquals(10L, staleSuspect.getIncarnation());
+        verify(pendingMessages, never()).add(any(MemberSuspiciousMessage.class));
+    }
+
+    @Test
+    void ping_ignoresStaleMemberSuspiciousWhenIncarnationEqual() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member target = new Member("node-2", new InetSocketAddress("localhost", 8081));
+        Member staleSuspect = new Member("node-3", new InetSocketAddress("localhost", 8082));
+        staleSuspect.setIncarnation(5L);
+        staleSuspect.setStatus(MemberStatus.ALIVE);
+
+        MemberSuspiciousMessage msg =
+                new MemberSuspiciousMessage("node-1", "node-3", 5L);
+
+        request.getPayload().add(msg);
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(memberList.get("node-2")).thenReturn(target);
+        when(memberList.get("node-3")).thenReturn(staleSuspect);
+        when(clusterConfig.getNodeId()).thenReturn("edge-node");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        apiController.ping(request);
+
+        assertEquals(MemberStatus.ALIVE, staleSuspect.getStatus());
+        verify(pendingMessages, never()).add(any(MemberSuspiciousMessage.class));
+    }
+
+    @Test
+    void ping_processesFreshMemberSuspiciousWhenIncarnationIsHigher() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member target = new Member("node-2", new InetSocketAddress("localhost", 8081));
+        Member freshSuspect = new Member("node-3", new InetSocketAddress("localhost", 8082));
+        freshSuspect.setIncarnation(5L);
+        freshSuspect.setStatus(MemberStatus.ALIVE);
+
+        MemberSuspiciousMessage msg =
+                new MemberSuspiciousMessage("node-1", "node-3", 10L);
+
+        request.getPayload().add(msg);
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(memberList.get("node-2")).thenReturn(target);
+        when(memberList.get("node-3")).thenReturn(freshSuspect);
+        when(clusterConfig.getNodeId()).thenReturn("edge-node");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        apiController.ping(request);
+
+        assertEquals(MemberStatus.SUSPICIOUS, freshSuspect.getStatus());
+        verify(pendingMessages).add(any(MemberSuspiciousMessage.class));
     }
 }

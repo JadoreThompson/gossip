@@ -19,6 +19,17 @@ public class Member {
 
     private MemberStatus status = MemberStatus.ALIVE;
 
+    private final Object incarnationLock = new Object();
+
+    public long setIncarnation(final long incarnation) {
+        synchronized (incarnationLock) {
+            if (incarnation > this.incarnation) {
+                this.incarnation = incarnation;
+            }
+            return this.incarnation;
+        }
+    }
+
     @Override
     public String toString() {
         return "Member{" +

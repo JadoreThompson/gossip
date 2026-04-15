@@ -12,7 +12,7 @@ import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
 import com.zenz.gossip.util.MemberStatus;
 import com.zenz.gossip.util.PendingMessages;
-import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,7 +28,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 @RestController
-@RequestMapping
+@RequestMapping("/api")
 @Slf4j
 public class ApiController {
 
@@ -38,20 +38,19 @@ public class ApiController {
 
     private final ClusterConfig clusterConfig;
 
+    @Setter
     private HttpClient httpClient = HttpClient.newHttpClient();
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public void setHttpClient(HttpClient httpClient) {
+        this.httpClient = httpClient;
+    }
 
-    private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ApiController.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ApiController(final MemberList memberList, final PendingMessages pendingMessages, final ClusterConfig clusterConfig) {
         this.memberList = memberList;
         this.pendingMessages = pendingMessages;
         this.clusterConfig = clusterConfig;
-    }
-
-    public void setHttpClient(final HttpClient httpClient) {
-        this.httpClient = httpClient;
     }
 
     @PostMapping("/ping")
@@ -89,7 +88,7 @@ public class ApiController {
         }
 
         if (member.getStatus() == MemberStatus.SUSPICIOUS) {
-            pendingMessages.add(new MemberAliveMessage(member.getNodeId(), member.getIncarnation()));
+            pendingMessages.add(new MemberAliveMessage(clusterConfig.getNodeId(), member.getIncarnation(), member.getNodeId()));
             member.setStatus(MemberStatus.ALIVE);
         }
     }
@@ -132,20 +131,28 @@ public class ApiController {
                 final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage) message;
                 if (memberSuspiciousMessage.getTarget().equals(clusterConfig.getNodeId())) {
                     clusterConfig.setIncarnation(clusterConfig.getIncarnation() + 1);
-                    pendingMessages.add(new MemberAliveMessage(clusterConfig.getNodeId(), clusterConfig.getIncarnation()));
+                    pendingMessages.add(new MemberAliveMessage(
+                            clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId()));
                     return;
                 }
 
-                final Member member = memberList.get(memberSuspiciousMessage.getNodeId());
-                if (member != null && member.getStatus() != MemberStatus.SUSPICIOUS) {
+                final Member member = memberList.get(memberSuspiciousMessage.getTarget());
+                if (member != null && memberSuspiciousMessage.getIncarnation() > member.getIncarnation()) {
                     member.setStatus(MemberStatus.SUSPICIOUS);
                     pendingMessages.add(memberSuspiciousMessage);
                 }
             }
             case MEMBER_ALIVE -> {
                 final MemberAliveMessage memberAliveMessage = (MemberAliveMessage) message;
-                final Member member = memberList.get(memberAliveMessage.getNodeId());
-                if (member != null && member.getStatus() != MemberStatus.ALIVE) {
+                if (memberAliveMessage.getNodeId().equals(clusterConfig.getNodeId())) {
+                    pendingMessages.add(memberAliveMessage);
+                    clusterConfig.setIncarnation(memberAliveMessage.getIncarnation());
+                    return;
+                }
+
+                final Member member = memberList.get(memberAliveMessage.getTarget());
+                if (member != null && memberAliveMessage.getIncarnation() > member.getIncarnation()) {
+                    member.setIncarnation(memberAliveMessage.getIncarnation());
                     member.setStatus(MemberStatus.ALIVE);
                     pendingMessages.add(memberAliveMessage);
                 }
@@ -154,13 +161,15 @@ public class ApiController {
                 final MemberDeadMessage memberDeadMessage = (MemberDeadMessage) message;
                 if (memberDeadMessage.getTarget().equals(clusterConfig.getNodeId())) {
                     clusterConfig.setIncarnation(clusterConfig.getIncarnation() + 1);
-                    pendingMessages.add(new MemberAliveMessage(clusterConfig.getNodeId(), clusterConfig.getIncarnation()));
+                    pendingMessages.add(new MemberAliveMessage(
+                            clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId()));
                     return;
                 }
 
-                final Member member = memberList.get(memberDeadMessage.getNodeId());
-                if (member != null) {
+                final Member member = memberList.get(memberDeadMessage.getTarget());
+                if (member != null && memberDeadMessage.getIncarnation() > member.getIncarnation()) {
                     memberList.remove(member);
+                    pendingMessages.add(memberDeadMessage);
                 }
             }
             case RANDOM_MESSAGE -> log.info("Received message: {}", ((RandomMessage) message).getData());

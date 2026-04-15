@@ -55,23 +55,23 @@ class FailureDetectionServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         failureDetectionService = new FailureDetectionService();
-        
+
         final Field memberListField = FailureDetectionService.class.getDeclaredField("memberList");
         memberListField.setAccessible(true);
         memberListField.set(failureDetectionService, memberList);
-        
+
         final Field pendingMessagesField = FailureDetectionService.class.getDeclaredField("pendingMessages");
         pendingMessagesField.setAccessible(true);
         pendingMessagesField.set(failureDetectionService, pendingMessages);
-        
+
         final Field clusterConfigField = FailureDetectionService.class.getDeclaredField("clusterConfig");
         clusterConfigField.setAccessible(true);
         clusterConfigField.set(failureDetectionService, clusterConfig);
-        
+
         final Field httpClientField = FailureDetectionService.class.getDeclaredField("httpClient");
         httpClientField.setAccessible(true);
         httpClientField.set(failureDetectionService, httpClient);
-        
+
         final Field objectMapperField = FailureDetectionService.class.getDeclaredField("objectMapper");
         objectMapperField.setAccessible(true);
         objectMapperField.set(failureDetectionService, objectMapper);
@@ -170,8 +170,8 @@ class FailureDetectionServiceTest {
     @Test
     void sendPingRequest_addsPendingMessagesToPayload() throws Exception {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
-        final Message message1 = new MemberAliveMessage("node-2", 1L);
-        final Message message2 = new MemberAliveMessage("node-3", 2L);
+        final Message message1 = new MemberAliveMessage("node-1", 1L, "node-2");
+        final Message message2 = new MemberAliveMessage("node-1", 2L, "node-3");
 
         when(pendingMessages.toList()).thenReturn(List.of(message1, message2));
         when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
@@ -195,7 +195,7 @@ class FailureDetectionServiceTest {
     @Test
     void sendPingRequest_clearsPendingMessagesAfterSending() throws Exception {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
-        final Message message = new MemberAliveMessage("node-2", 1L);
+        final Message message = new MemberAliveMessage("node-1", 1L, "node-2");
 
         when(pendingMessages.toList()).thenReturn(List.of(message));
         when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");

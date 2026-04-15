@@ -4,9 +4,7 @@ import com.zenz.gossip.util.Member;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.ConfigurationPropertiesBinding;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
@@ -28,4 +26,12 @@ public class ClusterConfig {
     private int failureTimeout;
 
     private List<Member> members;
+
+    public long setIncarnation(final long incarnation) {
+        if (incarnation > this.incarnation) {
+            this.incarnation = incarnation;
+        }
+
+        return this.incarnation;
+    }
 }
