@@ -345,4 +345,122 @@ class ApiControllerTest {
         assertEquals(MemberStatus.SUSPICIOUS, freshSuspect.getStatus());
         verify(pendingMessages).add(any(MemberSuspiciousMessage.class));
     }
+
+    @Test
+    void ping_handlesMemberDeadForSelf_withMatchingIncarnation_incrementsIncarnationAndAddsAlive() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(clusterConfig.getNodeId()).thenReturn("node-2");
+        when(clusterConfig.getIncarnation()).thenReturn(5L);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-2", 5L);
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        verify(clusterConfig).setIncarnation(6L);
+        verify(pendingMessages).add(any(MemberAliveMessage.class));
+    }
+
+    @Test
+    void ping_handlesMemberDeadForSelf_withHigherIncarnation_incrementsIncarnationAndAddsAlive() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(clusterConfig.getNodeId()).thenReturn("node-2");
+        when(clusterConfig.getIncarnation()).thenReturn(5L);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-2", 10L);
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        verify(clusterConfig).setIncarnation(11L);
+        verify(pendingMessages).add(any(MemberAliveMessage.class));
+    }
+
+    @Test
+    void ping_handlesMemberDeadForSelf_withLowerIncarnation_incrementsIncarnationAndAddsAlive() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+
+        when(memberList.get("node-1")).thenReturn(requester);
+        when(clusterConfig.getNodeId()).thenReturn("node-2");
+        when(clusterConfig.getIncarnation()).thenReturn(10L);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-2", 5L);
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        assertEquals(
+                10L,
+                clusterConfig.getIncarnation(),
+                "Incarnation should have remained the same after receiving stale incarnation");
+        verify(pendingMessages).add(any(MemberAliveMessage.class));
+    }
+
+    @Test
+    void ping_handlesMemberDeadForOther_removesMemberWhenExistsAndHigherIncarnation() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member target = new Member("node-2", new InetSocketAddress("localhost", 8081));
+        Member deadMember = new Member("node-3", new InetSocketAddress("localhost", 8082));
+        deadMember.setIncarnation(3L);
+
+        lenient().when(memberList.get("node-1")).thenReturn(requester);
+        lenient().when(memberList.get("node-2")).thenReturn(target);
+        lenient().when(memberList.get("node-3")).thenReturn(deadMember);
+        lenient().when(clusterConfig.getNodeId()).thenReturn("node-2");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-3", 5L);
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        verify(memberList).remove(deadMember);
+        verify(pendingMessages).add(any(MemberDeadMessage.class));
+    }
+
+    @Test
+    void ping_handlesMemberDeadForOther_doesNotRemoveWhenMemberNotExists() throws Exception {
+        PingRequest request = new PingRequest("node-1", "node-2");
+
+        Member requester = new Member("node-1", new InetSocketAddress("localhost", 8080));
+        Member target = new Member("node-2", new InetSocketAddress("localhost", 8081));
+
+        lenient().when(memberList.get("node-1")).thenReturn(requester);
+        lenient().when(memberList.get("node-2")).thenReturn(target);
+        lenient().when(clusterConfig.getNodeId()).thenReturn("node-2");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-3", 5L);
+        request.getPayload().add(msg);
+
+        apiController.ping(request);
+
+        verify(memberList, never()).remove(any(Member.class));
+        verify(pendingMessages, never()).add(any(MemberDeadMessage.class));
+    }
 }

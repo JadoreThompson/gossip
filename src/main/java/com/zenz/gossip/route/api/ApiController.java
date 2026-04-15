@@ -160,7 +160,9 @@ public class ApiController {
             case MEMBER_DEAD -> {
                 final MemberDeadMessage memberDeadMessage = (MemberDeadMessage) message;
                 if (memberDeadMessage.getTarget().equals(clusterConfig.getNodeId())) {
-                    clusterConfig.setIncarnation(clusterConfig.getIncarnation() + 1);
+                    if (memberDeadMessage.getIncarnation() >= clusterConfig.getIncarnation()) {
+                        clusterConfig.setIncarnation(memberDeadMessage.getIncarnation() + 1);
+                    }
                     pendingMessages.add(new MemberAliveMessage(
                             clusterConfig.getNodeId(), clusterConfig.getIncarnation(), clusterConfig.getNodeId()));
                     return;
