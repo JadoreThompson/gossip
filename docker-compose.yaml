@@ -7,7 +7,9 @@ services:
     container_name: node1_container
     entrypoint: [ "java", "-jar", "-Dspring.profiles.active=first", "app.jar" ]
     networks:
-      - gossip_network
+      - boutade_network
+    ports:
+      - 1010:8080
   node2:
     image: gossip-server
     build:
@@ -16,7 +18,9 @@ services:
     container_name: node2_container
     entrypoint: [ "java", "-jar", "-Dspring.profiles.active=second", "app.jar" ]
     networks:
-      - gossip_network
+      - boutade_network
+    ports:
+      - 2020:8080
   node3:
     image: gossip-server
     build:
@@ -25,9 +29,11 @@ services:
     container_name: node3_container
     entrypoint: [ "java", "-jar", "-Dspring.profiles.active=third", "app.jar" ]
     networks:
-      - gossip_network
+      - boutade_network
+    ports:
+      - 3030:8080
 
 networks:
-  gossip_network:
+  boutade_network:
     driver: bridge
-    name: gossip_network
+    name: boutade_network
