@@ -3,33 +3,6 @@
 A Spring Boot-based implementation of the SWIM protocol for distributed systems failure detection and membership
 management.
 
-## Inspiration
-
-My team were running 20 services and planning to scale to 50+ services, and we needed a reliable way to distribute
-configuration and metadata updates across the cluster. The key constraint was that the solution had to be horizontally
-scalable and fault-tolerant, which ruled out introducing a central manager or coordination node. Any such component
-would become a bottleneck and a single point of failure as the system grew.
-
-We instead adopted a gossip based dissemination model inspired by protocols like
-the [SWIM protocol](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf). Each node maintains
-a partial view of the cluster and periodically exchanges state with a small, random subset of peers. Configuration
-changes and metadata updates are piggybacked onto these exchanges and propagate through the system in an epidemic
-fashion.
-
-This approach gave us several advantages. It scales naturally because propagation time grows logarithmically with the
-number of nodes, so moving from 20 to 50 services does not materially impact latency. It is resilient because there is
-no central dependency, so nodes can fail or restart without disrupting the overall system. It also avoids coordination
-overhead since updates are eventually consistent rather than strongly consistent, which was acceptable for our use case.
-
-To make this reliable in practice, we layered in a few important mechanisms. Each update is assigned a unique identifier
-and a version or incarnation, allowing nodes to deduplicate messages and resolve conflicts deterministically. Updates
-are retransmitted for a bounded number of rounds, typically proportional to log N, to ensure high probability delivery
-without flooding the network indefinitely. We also included lightweight health checking so that nodes could avoid
-disseminating to unresponsive peers.
-
-The result was a system where configuration changes could be introduced at any node and would rapidly and reliably
-converge across the cluster, without the operational and scaling concerns of a centralized solution.
-
 ## Overview
 
 ### Features
@@ -148,6 +121,12 @@ public interface Message {
 ```bash
 ./mvnw clean install
 ./mvnw spring-boot:run
+```
+
+Run a demo with a seed node and two non-seed nodes :
+
+```bash
+docker compose up -d
 ```
 
 ## Configuration
