@@ -5,7 +5,6 @@ import com.zenz.gossip.message.MemberAliveMessage;
 import com.zenz.gossip.message.Message;
 import com.zenz.gossip.route.api.request.JoinRequest;
 import com.zenz.gossip.route.api.request.PingRequest;
-import com.zenz.gossip.route.api.request.RequestType;
 import com.zenz.gossip.util.Member;
 import com.zenz.gossip.util.MemberList;
 import com.zenz.gossip.util.MemberStatus;
@@ -19,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -56,28 +54,9 @@ class FailureDetectionServiceTest {
     private FailureDetectionService failureDetectionService;
 
     @BeforeEach
-    void setUp() throws Exception {
-        failureDetectionService = new FailureDetectionService();
-
-        final Field memberListField = FailureDetectionService.class.getDeclaredField("memberList");
-        memberListField.setAccessible(true);
-        memberListField.set(failureDetectionService, memberList);
-
-        final Field pendingMessagesField = FailureDetectionService.class.getDeclaredField("pendingMessages");
-        pendingMessagesField.setAccessible(true);
-        pendingMessagesField.set(failureDetectionService, pendingMessages);
-
-        final Field clusterConfigField = FailureDetectionService.class.getDeclaredField("clusterConfig");
-        clusterConfigField.setAccessible(true);
-        clusterConfigField.set(failureDetectionService, clusterConfig);
-
-        final Field httpClientField = FailureDetectionService.class.getDeclaredField("httpClient");
-        httpClientField.setAccessible(true);
-        httpClientField.set(failureDetectionService, httpClient);
-
-        final Field objectMapperField = FailureDetectionService.class.getDeclaredField("objectMapper");
-        objectMapperField.setAccessible(true);
-        objectMapperField.set(failureDetectionService, objectMapper);
+    void setUp() {
+        failureDetectionService = new FailureDetectionService(
+                memberList, pendingMessages, clusterConfig, httpClient, objectMapper);
     }
 
     @Test
@@ -91,15 +70,8 @@ class FailureDetectionServiceTest {
         final Member member2 = new Member("member-2", new InetSocketAddress("localhost", 8082));
 
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
-        when(clusterConfig.getAddress()).thenReturn(address);
         when(clusterConfig.getIncarnation()).thenReturn(incarnation);
         when(clusterConfig.getMembers()).thenReturn(List.of(member1, member2));
-
-        final JoinRequest expectedRequest = new JoinRequest(
-                RequestType.JOIN,
-                nodeId,
-                address,
-                incarnation);
 
         when(objectMapper.writeValueAsString(any(JoinRequest.class))).thenReturn("{}");
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
@@ -120,15 +92,8 @@ class FailureDetectionServiceTest {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8081));
 
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
-        when(clusterConfig.getAddress()).thenReturn(address);
         when(clusterConfig.getIncarnation()).thenReturn(incarnation);
         when(clusterConfig.getMembers()).thenReturn(List.of(member));
-
-        final JoinRequest expectedRequest = new JoinRequest(
-                RequestType.JOIN,
-                nodeId,
-                address,
-                incarnation);
 
         final String requestBodyJson = "{\"type\":\"JOIN\",\"nodeId\":\"node-1\",\"address\":\"localhost:8080\",\"incarnation\":1}";
         lenient().when(objectMapper.writeValueAsString(any(JoinRequest.class))).thenReturn(requestBodyJson);
@@ -143,7 +108,7 @@ class FailureDetectionServiceTest {
         verify(httpClient).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
 
         final HttpRequest capturedRequest = requestCaptor.getValue();
-        assert capturedRequest.uri().toString().contains("/join");
+        assertTrue(capturedRequest.uri().toString().contains("/api/join"));
     }
 
     @Test
@@ -156,7 +121,6 @@ class FailureDetectionServiceTest {
         final Member member2 = new Member("member-2", new InetSocketAddress("localhost", 8082));
 
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
-        when(clusterConfig.getAddress()).thenReturn(address);
         when(clusterConfig.getIncarnation()).thenReturn(incarnation);
         when(clusterConfig.getMembers()).thenReturn(List.of(member1, member2));
 
@@ -200,16 +164,16 @@ class FailureDetectionServiceTest {
     }
 
     @Test
-    void init_skipsWhenFailureTimeoutIsZero() throws Exception {
+    void init_skipsWhenFailureTimeoutIsZero() {
         when(clusterConfig.getFailureTimeout()).thenReturn(0);
-        failureDetectionService.detectFailures();
+        failureDetectionService.detectFailure();
         verify(memberList, never()).getRandom();
     }
 
     @Test
     void sendPingRequest_usesCorrectEndpoint() throws Exception {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
-//        when(pendingMessages.toList()).thenReturn(List.of());
+
         when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
@@ -221,8 +185,8 @@ class FailureDetectionServiceTest {
         verify(httpClient).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
 
         final String uri = requestCaptor.getValue().uri().toString();
-        assert uri.contains("/ping");
-        assert uri.contains("localhost:8080");
+        assertTrue(uri.contains("/api/ping"));
+        assertTrue(uri.contains("localhost:8080"));
     }
 
     @Test
@@ -241,13 +205,12 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-//        when(pendingMessages.toList()).thenReturn(List.of());
         when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"));
 
-        failureDetectionService.detectFailures();
+        failureDetectionService.detectFailure();
 
         verify(httpClient, atLeast(3)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
@@ -270,16 +233,15 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-//        when(pendingMessages.toList()).thenReturn(List.of());
         when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"));
 
-        failureDetectionService.detectFailures();
+        failureDetectionService.detectFailure();
 
         verify(pendingMessages).add(any(com.zenz.gossip.message.MemberSuspiciousMessage.class));
-        assert primaryMember.getStatus() == MemberStatus.SUSPICIOUS;
+        assertEquals(MemberStatus.SUSPICIOUS, primaryMember.getStatus());
     }
 
     @Test
@@ -300,13 +262,12 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-//        when(pendingMessages.toList()).thenReturn(List.of());
         when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"));
 
-        failureDetectionService.detectFailures();
+        failureDetectionService.detectFailure();
 
         verify(pendingMessages).add(any(com.zenz.gossip.message.MemberDeadMessage.class));
         verify(memberList).remove(primaryMember);
@@ -330,16 +291,15 @@ class FailureDetectionServiceTest {
                 .thenReturn(edgeMember1)
                 .thenReturn(edgeMember2);
         when(memberList.size()).thenReturn(3);
-//        when(pendingMessages.toList()).thenReturn(List.of());
         when(pendingMessages.iterator()).thenReturn(new ArrayList<Message>().iterator());
         lenient().when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("Connection failed"))
                 .thenReturn(httpResponse);
 
-        failureDetectionService.detectFailures();
+        failureDetectionService.detectFailure();
 
-        assert primaryMember.getStatus() == MemberStatus.ALIVE;
+        assertEquals(MemberStatus.ALIVE, primaryMember.getStatus());
     }
 
     @Test
@@ -368,8 +328,6 @@ class FailureDetectionServiceTest {
 
     @Test
     void sendPingRequest_removesMessages_whenBeyondLogNThreshold() throws Exception {
-//        when(clusterConfig.getNodeId()).thenReturn("node-1");
-
         Member targetMember = new Member("target-1", new InetSocketAddress("localhost", 8080));
 
         List<Message> messages = new ArrayList<>();

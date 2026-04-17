@@ -1,9 +1,8 @@
 cluster:
   node-id: node-1
-  address: localhost,8080
-  failure-timeout: 30000
+  failure-timeout: 3000
   members:
-    - node-2,localhost,9090
+    - node-2,node2,8080
 spring:
   application:
     name: gossip

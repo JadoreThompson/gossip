@@ -1,0 +1,33 @@
+services:
+  node1:
+    image: gossip-server
+    build:
+      dockerfile: Dockerfile
+      context: .
+    container_name: node1_container
+    entrypoint: [ "java", "-jar", "-Dspring.profiles.active=first", "app.jar" ]
+    networks:
+      - gossip_network
+  node2:
+    image: gossip-server
+    build:
+      dockerfile: Dockerfile
+      context: .
+    container_name: node2_container
+    entrypoint: [ "java", "-jar", "-Dspring.profiles.active=second", "app.jar" ]
+    networks:
+      - gossip_network
+  node3:
+    image: gossip-server
+    build:
+      dockerfile: Dockerfile
+      context: .
+    container_name: node3_container
+    entrypoint: [ "java", "-jar", "-Dspring.profiles.active=third", "app.jar" ]
+    networks:
+      - gossip_network
+
+networks:
+  gossip_network:
+    driver: bridge
+    name: gossip_network

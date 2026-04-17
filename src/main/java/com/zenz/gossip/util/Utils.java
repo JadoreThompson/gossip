@@ -5,7 +5,8 @@ import com.zenz.gossip.message.Message;
 import com.zenz.gossip.route.api.request.PingRequest;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 public class Utils {
@@ -16,25 +17,20 @@ public class Utils {
             final MemberList memberList,
             final long curRound) {
         synchronized (pendingMessages) {
-            final Iterator<Message> iterator = pendingMessages.iterator();
-
-            final long maxRounds = (long) Math.ceil(
-                    Math.log(memberList.size()) / Math.log(2)
+            final long maxRounds = memberList.size() < 2 ? 1 : (long) Math.ceil(
+                    Math.log(memberList.size())
             );
 
-            log.info("size {}", memberList.size());
-
-            while (iterator.hasNext()) {
-                final Message message = iterator.next();
-
-                log.info("Message {} maxRounds {} curRound {}",
-                        message, maxRounds, curRound);
-
-                if (curRound - message.getRound() >= maxRounds) {
-                    iterator.remove();
+            final List<Message> toRemove = new ArrayList<>();
+            for (Message message : pendingMessages) {
+                if (curRound - message.getRound() > maxRounds) {
+                    toRemove.add(message);
                 } else {
                     pingRequest.getPayload().add(message);
                 }
+            }
+            for (Message message : toRemove) {
+                pendingMessages.remove(message);
             }
         }
     }

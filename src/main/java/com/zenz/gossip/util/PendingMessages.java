@@ -2,7 +2,10 @@ package com.zenz.gossip.util;
 
 import com.zenz.gossip.message.Message;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 public class PendingMessages implements Iterable<Message> {
 
@@ -14,26 +17,23 @@ public class PendingMessages implements Iterable<Message> {
         }
     }
 
-    public void clear() {
-        synchronized (this) {
-            messages.clear();
-        }
-    }
-
     public boolean remove(final Message message) {
         synchronized (this) {
             return messages.remove(message);
         }
     }
 
-    public List<Message> toList() {
+    @Override
+    public Iterator<Message> iterator() {
         synchronized (this) {
-            return new ArrayList<>(messages);
+            return new ArrayList<>(messages).iterator();
         }
     }
 
     @Override
-    public Iterator<Message> iterator() {
-        return messages.iterator();
+    public String toString() {
+        return "PendingMessages{" +
+                "messages=" + messages +
+                '}';
     }
 }

@@ -16,4 +16,13 @@ public class RandomMessage implements Message {
     @Setter
     @JsonIgnore
     private long round;
+
+    @Override
+    public String toString() {
+        return "RandomMessage{" +
+                "type=" + type +
+                ", data='" + data + '\'' +
+                ", round=" + round +
+                '}';
+    }
 }

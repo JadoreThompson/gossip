@@ -1,6 +1,6 @@
 cluster:
-  node-id: node-2
-  failureTimeout: 3000
+  node-id: node-3
+  failure-timeout: 3000
   members:
     - node-1,node1,8080
 spring:

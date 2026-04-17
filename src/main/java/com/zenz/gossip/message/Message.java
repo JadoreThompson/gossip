@@ -5,10 +5,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = MemberAliveMessage.class, name = "ALIVE"),
+        @JsonSubTypes.Type(value = MemberAliveMessage.class, name = "MEMBER_ALIVE"),
         @JsonSubTypes.Type(value = RandomMessage.class, name = "RANDOM_MESSAGE"),
         @JsonSubTypes.Type(value = MemberDeadMessage.class, name = "MEMBER_DEAD"),
-        @JsonSubTypes.Type(value = MemberSuspiciousMessage.class, name = "MEMBER_SUSPICIOUS")
+        @JsonSubTypes.Type(value = MemberSuspiciousMessage.class, name = "MEMBER_SUSPICIOUS"),
+        @JsonSubTypes.Type(value = JoinMessage.class, name = "MEMBER_JOIN")
 })
 public interface Message {
 

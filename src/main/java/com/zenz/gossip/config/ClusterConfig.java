@@ -7,7 +7,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 
 @Getter
@@ -19,8 +18,6 @@ public class ClusterConfig {
 
     private String nodeId;
 
-    private InetSocketAddress address;
-
     private long incarnation;
 
     private int failureTimeout;
@@ -28,6 +25,8 @@ public class ClusterConfig {
     private List<Member> members;
 
     private long round;
+
+    private int port = 8080;
 
     private final Object roundLock = new Object();
     private final Object incarnationLock = new Object();

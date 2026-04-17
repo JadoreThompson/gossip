@@ -1,6 +1,7 @@
 package com.zenz.gossip.config;
 
 import com.zenz.gossip.route.exception.BadRequestException;
+import com.zenz.gossip.route.exception.ConflictException;
 import com.zenz.gossip.route.exception.NotFoundException;
 import com.zenz.gossip.route.response.ErrorResponse;
 import org.springframework.http.HttpStatus;
@@ -19,9 +20,16 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ErrorResponse> handleNotFoundException(final BadRequestException e) {
+    public ResponseEntity<ErrorResponse> handleBadRequestException(final BadRequestException e) {
         final ErrorResponse response = new ErrorResponse();
         response.setMessage(e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflictException(final ConflictException e) {
+        final ErrorResponse response = new ErrorResponse();
+        response.setMessage(e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 }

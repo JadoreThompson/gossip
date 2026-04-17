@@ -17,7 +17,7 @@ public class PingRequest {
 
     private final String target;
 
-    private final List<Message> payload = new ArrayList<>();
+    private List<Message> payload = new ArrayList<>();
 
     @Override
     public String toString() {

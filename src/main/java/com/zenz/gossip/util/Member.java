@@ -1,5 +1,6 @@
 package com.zenz.gossip.util;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -9,6 +10,7 @@ import java.net.InetSocketAddress;
 @Getter
 @Setter
 @RequiredArgsConstructor
+@EqualsAndHashCode(of = "nodeId")
 public class Member {
 
     private final String nodeId;
@@ -20,6 +22,11 @@ public class Member {
     private MemberStatus status = MemberStatus.ALIVE;
 
     private final Object incarnationLock = new Object();
+
+    /**
+     * The round the node was found suspicious
+     */
+    private long round = -1;
 
     public long setIncarnation(final long incarnation) {
         synchronized (incarnationLock) {

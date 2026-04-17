@@ -6,4 +6,5 @@ public enum MessageType {
     MEMBER_DEAD,
     MEMBER_ALIVE,
     RANDOM_MESSAGE,
+    MEMBER_JOIN
 }
