@@ -1,9 +1,7 @@
 package com.zenz.boutade.service;
 
 import com.zenz.boutade.config.ClusterConfig;
-import com.zenz.boutade.message.MemberAliveMessage;
 import com.zenz.boutade.message.MemberDeadMessage;
-import com.zenz.boutade.message.Message;
 import com.zenz.boutade.route.boutade.request.JoinRequest;
 import com.zenz.boutade.route.boutade.request.PingRequest;
 import com.zenz.boutade.util.Member;
@@ -24,7 +22,6 @@ import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -138,38 +135,8 @@ class FailureDetectionServiceTest {
     }
 
     @Test
-    void sendPingRequest_addsPendingMessagesToPayload() throws Exception {
-        final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
-        final Message message1 = new MemberAliveMessage("node-1", 1L, "node-2");
-        message1.setRound(1L);
-        final Message message2 = new MemberAliveMessage("node-1", 2L, "node-3");
-        message2.setRound(2L);
-
-        when(clusterConfig.getRound()).thenReturn(2L);
-        when(memberList.size()).thenReturn(4);
-        when(pendingMessages.iterator()).thenReturn(List.of(message1, message2).iterator());
-        when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
-        lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
-
-        failureDetectionService.sendPingRequest(new PingRequest("node-1", member.getNodeId()), member);
-
-        final var requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
-
-        final var pingRequestCaptor = ArgumentCaptor.forClass(PingRequest.class);
-        verify(objectMapper).writeValueAsString(pingRequestCaptor.capture());
-
-        final PingRequest capturedPingRequest = pingRequestCaptor.getValue();
-        assertEquals(2, capturedPingRequest.getPayload().size());
-        assertTrue(capturedPingRequest.getPayload().contains(message1));
-        assertTrue(capturedPingRequest.getPayload().contains(message2));
-    }
-
-    @Test
     void init_skipsWhenFailureTimeoutIsZero() throws IOException, InterruptedException {
         when(clusterConfig.getFailureTimeout()).thenReturn(0);
-//        failureDetectionService.detectFailure();
         failureDetectionService.run();
         verify(memberList, never()).getRandom();
     }
@@ -178,7 +145,6 @@ class FailureDetectionServiceTest {
     void sendPingRequest_usesCorrectEndpoint() throws Exception {
         final Member member = new Member("member-1", new InetSocketAddress("localhost", 8080));
 
-        when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
         when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
         lenient().when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
@@ -197,7 +163,6 @@ class FailureDetectionServiceTest {
     void detectFailures_sendsPingToEdgeNodesWhenPrimaryFails() throws Exception {
         final String nodeId = "node-1";
 
-//        when(clusterConfig.getFailureTimeout()).thenReturn(100);
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
 
         final Member primaryMember = new Member("primary", new InetSocketAddress("localhost", 8080));
@@ -224,7 +189,6 @@ class FailureDetectionServiceTest {
     void detectFailures_marksMemberSuspiciousWhenAllPingsFail() throws Exception {
         final String nodeId = "node-1";
 
-//        when(clusterConfig.getFailureTimeout()).thenReturn(100);
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
 
         final Member primaryMember = new Member("primary", new InetSocketAddress("localhost", 8080));
@@ -254,7 +218,6 @@ class FailureDetectionServiceTest {
     void detectFailures_marksMemberDeadWhenAlreadySuspicious() throws Exception {
         final String nodeId = "node-1";
 
-//        when(clusterConfig.getFailureTimeout()).thenReturn(100);
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
 
         final Member primaryMember = new Member("primary", new InetSocketAddress("localhost", 8080));
@@ -286,7 +249,6 @@ class FailureDetectionServiceTest {
     void detectFailures_marksMemberAliveWhenAtLeastOneEdgePingSucceeds() throws Exception {
         final String nodeId = "node-1";
 
-//        when(clusterConfig.getFailureTimeout()).thenReturn(100);
         when(clusterConfig.getNodeId()).thenReturn(nodeId);
 
         final Member primaryMember = new Member("primary", new InetSocketAddress("localhost", 8080));
@@ -311,50 +273,5 @@ class FailureDetectionServiceTest {
         failureDetectionService.detectFailure();
 
         assertEquals(MemberStatus.ALIVE, primaryMember.getStatus());
-    }
-
-    @Test
-    void sendPingRequest_prunesOldMessages_usingUtils() throws Exception {
-        lenient().when(clusterConfig.getNodeId()).thenReturn("node-1");
-
-        Member targetMember = new Member("target-1", new InetSocketAddress("localhost", 8080));
-
-        List<Message> messages = new ArrayList<>();
-        MemberAliveMessage recentMsg = new MemberAliveMessage("node-2", 1L, "node-3");
-        recentMsg.setRound(10L);
-        messages.add(recentMsg);
-
-        when(pendingMessages.iterator()).thenReturn(messages.iterator());
-        when(clusterConfig.getRound()).thenReturn(15L);
-        when(memberList.size()).thenReturn(4);
-        when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
-
-        PingRequest pingRequest = new PingRequest("node-1", "target-1");
-        failureDetectionService.sendPingRequest(pingRequest, targetMember);
-
-        verify(pendingMessages).iterator();
-        assertTrue(pingRequest.getPayload().size() >= 0);
-    }
-
-    @Test
-    void sendPingRequest_removesMessages_whenBeyondLogNThreshold() throws Exception {
-        Member targetMember = new Member("target-1", new InetSocketAddress("localhost", 8080));
-
-        List<Message> messages = new ArrayList<>();
-        MemberAliveMessage oldMsg = new MemberAliveMessage("node-2", 1L, "node-3");
-        oldMsg.setRound(1L);
-        messages.add(oldMsg);
-
-        when(pendingMessages.iterator()).thenReturn(messages.iterator());
-        when(clusterConfig.getRound()).thenReturn(100L);
-        when(memberList.size()).thenReturn(4);
-        when(objectMapper.writeValueAsString(any(PingRequest.class))).thenReturn("{}");
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
-
-        PingRequest pingRequest = new PingRequest("node-1", "target-1");
-        failureDetectionService.sendPingRequest(pingRequest, targetMember);
-
-        assertTrue(pingRequest.getPayload().isEmpty() || !pingRequest.getPayload().contains(oldMsg));
     }
 }

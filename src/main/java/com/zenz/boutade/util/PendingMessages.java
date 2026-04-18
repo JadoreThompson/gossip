@@ -9,12 +9,15 @@ public class PendingMessages implements Iterable<Message> {
 
     private final Map<UUID, Message> messages = new HashMap<>();
 
-    public void add(final Message message) {
+    public boolean add(final Message message) {
         synchronized (this) {
             if (!messages.containsKey(message.getId())) {
                 messages.put(message.getId(), message);
+                return true;
             }
         }
+
+        return false;
     }
 
     public boolean remove(final Message message) {

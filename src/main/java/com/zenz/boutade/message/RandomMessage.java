@@ -19,7 +19,6 @@ public class RandomMessage implements Message {
 
     private final JsonNode data;
 
-    @Setter
     @JsonIgnore
     private long round;
 

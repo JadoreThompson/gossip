@@ -9,6 +9,7 @@ import com.zenz.boutade.route.boutade.request.RequestType;
 import com.zenz.boutade.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +26,7 @@ import java.util.Set;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class FailureDetectionService {
 
     private final MemberList memberList;
@@ -40,19 +42,6 @@ public class FailureDetectionService {
     private volatile boolean running = true;
 
     private Thread protocolThread;
-
-    public FailureDetectionService(
-            final MemberList memberList,
-            final PendingMessages pendingMessages,
-            final ClusterConfig clusterConfig,
-            final HttpClient httpClient,
-            final ObjectMapper objectMapper) {
-        this.memberList = memberList;
-        this.pendingMessages = pendingMessages;
-        this.clusterConfig = clusterConfig;
-        this.httpClient = httpClient;
-        this.objectMapper = objectMapper;
-    }
 
     @PostConstruct
     public void init() {

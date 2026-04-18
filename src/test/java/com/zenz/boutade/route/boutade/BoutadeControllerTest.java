@@ -40,7 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ApiControllerTest {
+class BoutadeControllerTest {
 
     @Mock
     private MemberList memberList;
@@ -63,11 +63,11 @@ class ApiControllerTest {
     @Mock
     private HttpServletRequest httpServletRequest;
 
-    private ApiController apiController;
+    private BoutadeController boutadeController;
 
     @BeforeEach
     void setUp() {
-        apiController = new ApiController(memberList, pendingMessages, clusterConfig, httpClient, objectMapper);
+        boutadeController = new BoutadeController(memberList, pendingMessages, clusterConfig, httpClient, objectMapper);
     }
 
     @Nested
@@ -93,7 +93,7 @@ class ApiControllerTest {
                 when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                         .thenReturn(httpResponse);
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
                 verify(httpClient, times(1)).send(captor.capture(), any());
@@ -118,7 +118,7 @@ class ApiControllerTest {
                 when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                         .thenReturn(httpResponse);
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
                 verify(memberList).add(memberCaptor.capture());
@@ -146,7 +146,7 @@ class ApiControllerTest {
                 when(memberList.get(targetId)).thenReturn(null);
                 when(clusterConfig.getNodeId()).thenReturn("edge-node");
 
-                assertThrows(NotFoundException.class, () -> apiController.ping(httpServletRequest, request));
+                assertThrows(NotFoundException.class, () -> boutadeController.ping(httpServletRequest, request));
                 verify(httpClient, never()).send(any(), any());
             }
 
@@ -170,7 +170,7 @@ class ApiControllerTest {
                         .thenReturn(httpResponse);
                 when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
                 verify(httpClient, times(2)).send(captor.capture(), any());
@@ -211,7 +211,7 @@ class ApiControllerTest {
                         .thenReturn(httpResponse);
                 when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
                 verify(httpClient, times(2)).send(captor.capture(), any());
@@ -252,7 +252,7 @@ class ApiControllerTest {
                         .thenReturn(httpResponse);
                 when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<PingRequest> pingCaptor = ArgumentCaptor.forClass(PingRequest.class);
                 verify(objectMapper, atLeastOnce()).writeValueAsString(pingCaptor.capture());
@@ -288,7 +288,7 @@ class ApiControllerTest {
                         .thenReturn(httpResponse);
                 when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<PingRequest> pingCaptor = ArgumentCaptor.forClass(PingRequest.class);
                 verify(objectMapper, atLeastOnce()).writeValueAsString(pingCaptor.capture());
@@ -324,7 +324,7 @@ class ApiControllerTest {
                         .thenReturn(httpResponse);
                 when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                apiController.ping(httpServletRequest, request);
+                boutadeController.ping(httpServletRequest, request);
 
                 ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
                 verify(httpClient, times(2)).send(captor.capture(), any());
@@ -366,7 +366,7 @@ class ApiControllerTest {
                             .thenReturn(httpResponse);
                     when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     assertEquals(MemberStatus.SUSPICIOUS, suspiciousMember.getStatus());
                     verify(pendingMessages).add(any(MemberSuspiciousMessage.class));
@@ -395,7 +395,7 @@ class ApiControllerTest {
                             .thenReturn(httpResponse);
                     when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     assertEquals(MemberStatus.ALIVE, staleSuspect.getStatus());
                     verify(pendingMessages, times(1)).add(msg);
@@ -424,7 +424,7 @@ class ApiControllerTest {
                             .thenReturn(httpResponse);
                     when(pendingMessages.iterator()).thenReturn(Collections.emptyIterator());
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     assertEquals(MemberStatus.SUSPICIOUS, staleSuspect.getStatus());
                     verify(pendingMessages, times(1)).add(msg);
@@ -447,7 +447,7 @@ class ApiControllerTest {
                     MemberSuspiciousMessage msg = new MemberSuspiciousMessage("node-3", "node-2", 5L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(clusterConfig).setIncarnation(6L);
                     verify(pendingMessages).add(any(MemberAliveMessage.class));
@@ -470,7 +470,7 @@ class ApiControllerTest {
                     when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                             .thenReturn(httpResponse);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(pendingMessages, times(1)).add(msg);
                 }
@@ -500,7 +500,7 @@ class ApiControllerTest {
                     MemberAliveMessage msg = new MemberAliveMessage("node-1", 5L, "node-3");
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     assertEquals(MemberStatus.ALIVE, member.getStatus());
                     assertEquals(5L, member.getIncarnation());
@@ -527,7 +527,7 @@ class ApiControllerTest {
                     MemberAliveMessage msg = new MemberAliveMessage("node-1", 5L, "node-3");
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     assertEquals(MemberStatus.SUSPICIOUS, member.getStatus());
                     assertEquals(10L, member.getIncarnation());
@@ -550,7 +550,7 @@ class ApiControllerTest {
                     MemberAliveMessage msg = new MemberAliveMessage("self-node", 10L, "self-node");
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(clusterConfig).setIncarnation(10L);
                     verify(pendingMessages).add(any(MemberAliveMessage.class));
@@ -579,7 +579,7 @@ class ApiControllerTest {
                     MemberDeadMessage msg = new MemberDeadMessage(requester.getNodeId(), victim.getNodeId(), 2L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(memberList).remove(victim);
                     verify(pendingMessages).add(any(MemberDeadMessage.class));
@@ -604,7 +604,7 @@ class ApiControllerTest {
                     MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-3", 5L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(memberList, never()).remove(any(Member.class));
                     verify(pendingMessages, times(1)).add(msg);
@@ -629,7 +629,7 @@ class ApiControllerTest {
                     MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-3", 5L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(memberList, never()).remove(any(Member.class));
                     verify(pendingMessages, times(1)).add(msg);
@@ -652,7 +652,7 @@ class ApiControllerTest {
                     MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-2", 5L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(clusterConfig).setIncarnation(6L);
                     verify(pendingMessages).add(any(MemberAliveMessage.class));
@@ -675,7 +675,7 @@ class ApiControllerTest {
                     MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-2", 10L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(clusterConfig).setIncarnation(11L);
                     verify(pendingMessages).add(any(MemberAliveMessage.class));
@@ -698,7 +698,7 @@ class ApiControllerTest {
                     MemberDeadMessage msg = new MemberDeadMessage("node-1", "node-2", 5L);
                     request.getPayload().add(msg);
 
-                    apiController.ping(httpServletRequest, request);
+                    boutadeController.ping(httpServletRequest, request);
 
                     verify(clusterConfig, never()).setIncarnation(anyLong());
                     verify(pendingMessages).add(any(MemberAliveMessage.class));
@@ -718,7 +718,7 @@ class ApiControllerTest {
 
             when(memberList.get("unknown-node")).thenReturn(null);
 
-            assertThrows(NotFoundException.class, () -> apiController.pong(request));
+            assertThrows(NotFoundException.class, () -> boutadeController.pong(request));
             verify(pendingMessages, never()).add(any());
         }
 
@@ -736,7 +736,7 @@ class ApiControllerTest {
             when(clusterConfig.getNodeId()).thenReturn("self-node");
             when(clusterConfig.getRound()).thenReturn(10L);
 
-            apiController.pong(request);
+            boutadeController.pong(request);
 
             assertEquals(MemberStatus.ALIVE, member.getStatus());
 
@@ -760,7 +760,7 @@ class ApiControllerTest {
 
             when(memberList.get(nodeId)).thenReturn(member);
 
-            apiController.pong(request);
+            boutadeController.pong(request);
 
             assertEquals(MemberStatus.ALIVE, member.getStatus());
             verify(pendingMessages, never()).add(any());
@@ -780,7 +780,7 @@ class ApiControllerTest {
             when(clusterConfig.getNodeId()).thenReturn("self-node");
             when(clusterConfig.getRound()).thenReturn(42L);
 
-            apiController.pong(request);
+            boutadeController.pong(request);
 
             ArgumentCaptor<MemberAliveMessage> captor = ArgumentCaptor.forClass(MemberAliveMessage.class);
             verify(pendingMessages).add(captor.capture());
@@ -802,7 +802,7 @@ class ApiControllerTest {
             when(clusterConfig.getNodeId()).thenReturn("self-node");
             when(clusterConfig.getRound()).thenReturn(1L);
 
-            apiController.pong(request);
+            boutadeController.pong(request);
 
             assertEquals(99L, member.getIncarnation());
 
@@ -830,7 +830,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 1L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 verify(memberList).add(any(Member.class));
                 verify(pendingMessages).add(any(JoinMessage.class));
@@ -846,7 +846,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 1L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
                 verify(memberList).add(memberCaptor.capture());
@@ -864,7 +864,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 1L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
                 verify(memberList).add(memberCaptor.capture());
@@ -884,7 +884,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 42L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
                 verify(memberList).add(memberCaptor.capture());
@@ -902,7 +902,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 5L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 ArgumentCaptor<JoinMessage> msgCaptor = ArgumentCaptor.forClass(JoinMessage.class);
                 verify(pendingMessages).add(msgCaptor.capture());
@@ -927,7 +927,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "existing-node", 1L);
 
-                assertThrows(ConflictException.class, () -> apiController.join(httpServletRequest, request));
+                assertThrows(ConflictException.class, () -> boutadeController.join(httpServletRequest, request));
 
                 verify(memberList, never()).add(any(Member.class));
                 verify(pendingMessages, never()).add(any(JoinMessage.class));
@@ -940,7 +940,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "existing-node", 1L);
 
-                assertThrows(ConflictException.class, () -> apiController.join(httpServletRequest, request));
+                assertThrows(ConflictException.class, () -> boutadeController.join(httpServletRequest, request));
 
                 verify(memberList, never()).add(any());
                 verify(memberList, never()).remove(any());
@@ -950,24 +950,6 @@ class ApiControllerTest {
         @Nested
         @DisplayName("Edge cases")
         class EdgeCaseTests {
-
-//            @Test
-//            @DisplayName("Handles IPv6 address correctly")
-//            void handlesIpv6Address() {
-//                when(memberList.contains("new-node")).thenReturn(false);
-//                when(clusterConfig.getRound()).thenReturn(1L);
-//                when(clusterConfig.getPort()).thenReturn(8080);
-//                when(httpServletRequest.getRemoteAddr()).thenReturn("::1");
-//
-//                JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 1L);
-//
-//                apiController.join(httpServletRequest, request);
-//
-//                ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
-//                verify(memberList).add(memberCaptor.capture());
-//
-//                assertEquals("::1", memberCaptor.getValue().getAddress().getHostString());
-//            }
 
             @Test
             @DisplayName("Handles zero incarnation")
@@ -979,7 +961,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 0L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
                 verify(memberList).add(memberCaptor.capture());
@@ -997,7 +979,7 @@ class ApiControllerTest {
 
                 JoinRequest request = new JoinRequest(RequestType.JOIN, "new-node", 1L);
 
-                apiController.join(httpServletRequest, request);
+                boutadeController.join(httpServletRequest, request);
 
                 ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
                 verify(memberList).add(memberCaptor.capture());

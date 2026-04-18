@@ -1,6 +1,8 @@
 # Boutade
 
-A Spring Boot-based implementation of the SWIM protocol for distributed systems failure detection and membership
+A Spring Boot-based implementation of
+the [SWIM protocol](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf) for distributed systems
+failure detection and membership
 management.
 
 ## Overview

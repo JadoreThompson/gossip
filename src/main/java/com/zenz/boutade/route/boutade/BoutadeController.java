@@ -22,12 +22,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/boutade")
 @Slf4j
 @RequiredArgsConstructor
-public class ApiController {
+public class BoutadeController {
 
     private final MemberList memberList;
 
@@ -39,11 +41,12 @@ public class ApiController {
 
     private final ObjectMapper objectMapper;
 
+    private final ConcurrentHashMap<UUID, Boolean> seenMessages = new ConcurrentHashMap<>();
+
     @PostMapping("/ping")
     public void ping(
             HttpServletRequest request,
             @RequestBody PingRequest body) throws IOException, InterruptedException {
-        log.info("Received ping request: {}", body.toString());
         Member member = memberList.get(body.getNodeId());
         if (member == null) {
             member = new Member(
@@ -115,6 +118,7 @@ public class ApiController {
     public void message(@RequestBody MessageRequest body) {
         final RandomMessage msg = new RandomMessage(body.getData());
         msg.setRound(clusterConfig.getRound());
+        log.info("Appending random message {}", msg.getId());
         pendingMessages.add(msg);
     }
 
@@ -140,7 +144,11 @@ public class ApiController {
     }
 
     private void handleMessage(final Message message) {
-        log.info("Handling message {}", message);
+        if (seenMessages.containsKey(message.getId())) {
+            return;
+        }
+        seenMessages.put(message.getId(), true);
+
         switch (message.getType()) {
             case MEMBER_SUSPICIOUS -> {
                 final MemberSuspiciousMessage memberSuspiciousMessage = (MemberSuspiciousMessage) message;
@@ -167,7 +175,6 @@ public class ApiController {
             }
             case MEMBER_ALIVE -> {
                 final MemberAliveMessage memberAliveMessage = (MemberAliveMessage) message;
-                memberAliveMessage.setRound(clusterConfig.getRound());
 
                 if (memberAliveMessage.getNodeId().equals(clusterConfig.getNodeId())) {
                     clusterConfig.setIncarnation(memberAliveMessage.getIncarnation());
@@ -180,6 +187,7 @@ public class ApiController {
                     }
                 }
 
+                memberAliveMessage.setRound(clusterConfig.getRound());
                 pendingMessages.add(memberAliveMessage);
             }
             case MEMBER_DEAD -> {
@@ -206,7 +214,12 @@ public class ApiController {
                 memberDeadMessage.setRound(clusterConfig.getRound());
                 pendingMessages.add(memberDeadMessage);
             }
-            case RANDOM_MESSAGE -> log.info("Received message: {}", ((RandomMessage) message).getData());
+            case RANDOM_MESSAGE -> {
+                final RandomMessage randomMessage = (RandomMessage) message;
+                log.info("Received random message: {}", randomMessage.getData());
+                randomMessage.setRound(clusterConfig.getRound());
+                pendingMessages.add(randomMessage);
+            }
             case MEMBER_JOIN -> {
                 final JoinMessage joinMessage = (JoinMessage) message;
 
